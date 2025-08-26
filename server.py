@@ -2,6 +2,11 @@
 import asyncio
 import json
 import time
+import re
+import smtplib
+from email.message import EmailMessage
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -120,6 +125,9 @@ def _make_json_safe(value):
 
 class YouTubeAnalysisInput(BaseModel):
     video_link: str
+
+class SponsorshipInput(BaseModel):
+    niche: str
 
 # --- API Endpoints ---
 
@@ -367,6 +375,117 @@ async def youtube_analyze(input: YouTubeAnalysisInput):
         raise HTTPException(status_code=500, detail="Analysis produced no report")
 
     return {"report": report}
+
+# --- Test Endpoint ---
+@app_fastapi.get("/api/sponsorship/test")
+async def sponsorship_test():
+    """Test endpoint to verify sponsorship functionality."""
+    return {
+        "message": "Sponsorship endpoint is working!",
+        "available_endpoints": [
+            "POST /api/sponsorship/send - Send sponsorship emails",
+            "GET /api/sponsorship/test - This test endpoint"
+        ],
+        "example_request": {
+            "niche": "marketing_mails"
+        }
+    }
+
+# --- Sponsorship Agent Integration ---
+@app_fastapi.post("/api/sponsorship/send")
+async def sponsorship_send(input: SponsorshipInput):
+    """Send sponsorship emails to companies in a specific niche from assets.json."""
+    
+    print(f"DEBUG: Requested niche: {input.niche}")
+    
+    # Read emails from assets.json for the specified niche
+    try:
+        with open('assets.json', 'r', encoding='utf-8') as f:
+            assets_data = json.load(f)
+            print(f"DEBUG: Assets data keys: {list(assets_data.keys())}")
+            
+            if input.niche not in assets_data:
+                available_niches = list(assets_data.keys())
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Niche '{input.niche}' not found. Available niches: {available_niches}"
+                )
+            
+            emails = assets_data[input.niche]
+            print(f"DEBUG: Found emails: {emails}")
+            
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="assets.json file not found")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Invalid assets.json format")
+
+    if not emails:
+        raise HTTPException(status_code=404, detail=f"No emails found for niche: {input.niche}")
+
+    try:
+        # Step 1: Draft the sponsorship email using LLM
+        print("Drafting sponsorship email...")
+        llm = ChatGroq(model="llama3-8b-8192")
+        
+        draft_prompt = PromptTemplate.from_template(
+            """
+            You are an expert ghostwriter for a social media influencer. Your task is to draft a professional, concise, and compelling sponsorship email.
+            Here is the influencer's data:
+            - Niche: {niche}
+            - YouTube Subscribers: 55000
+            - Instagram Followers: 15000
+            - LinkedIn Followers: 8000
+            - YouTube Profile: youtube.com/mytechchannel
+            - Instagram Profile: instagram.com/mytechchannel
+            - LinkedIn Profile: linkedin.com/in/mytechchannel
+            
+            Draft a short email suitable for a marketing department. The tone should be friendly yet professional. 
+            Clearly state the influencer's niche, audience size, and a brief value proposition. 
+            Do not include a subject line or a salutation (e.g., "Hi,"). 
+            End with "Best regards," followed by "Influencer's Name".
+            
+            Draft:
+            """
+        )
+        
+        chain = draft_prompt | llm
+        email_content = chain.invoke({"niche": input.niche}).content
+        print(f"Email drafted: {email_content[:100]}...")
+        
+        # Step 2: Send the emails using SMTP
+        print(f"Sending emails to {len(emails)} recipients...")
+        email_address = os.environ.get('EMAIL_ADDRESS')
+        email_password = os.environ.get('EMAIL_PASSWORD')
+
+        if not email_address or not email_password:
+            raise HTTPException(status_code=500, detail="EMAIL_ADDRESS or EMAIL_PASSWORD environment variable not set.")
+
+        msg = MIMEMultipart()
+        msg["From"] = email_address
+        msg["To"] = ", ".join(emails)
+        msg["Subject"] = 'Sponsorship Inquiry'
+        msg.attach(MIMEText(email_content, "plain"))
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(email_address, email_password.replace(" ", ""))
+        server.sendmail(email_address, emails, msg.as_string())
+        server.quit()
+        
+        print("Emails sent successfully!")
+        
+        return {
+            "success": True,
+            "niche": input.niche,
+            "emails_found": len(emails),
+            "emails_sent": emails,
+            "email_content": email_content,
+            "message": f"Successfully sent emails to {len(emails)} recipients."
+        }
+        
+    except Exception as e:
+        print(f"Error in sponsorship workflow: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Sponsorship workflow failed: {str(e)}")
 
 # Create the app instance
 app = app_fastapi
