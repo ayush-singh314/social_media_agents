@@ -141,6 +141,10 @@ async def root():
             "POST /api/generate-ideas": "Generate content ideas",
             "POST /api/draft-post": "Draft a post/script",
             "POST /api/publish": "Publish content",
+            "POST /api/youtube/publish": "Publish YouTube videos",
+            "POST /api/youtube/analyze": "Analyze YouTube comments",
+            "POST /api/sponsorship/send": "Send sponsorship emails",
+            "GET /api/sponsorship/test": "Test sponsorship endpoint",
             "GET /api/health": "Health check"
         }
     }
@@ -375,21 +379,6 @@ async def youtube_analyze(input: YouTubeAnalysisInput):
         raise HTTPException(status_code=500, detail="Analysis produced no report")
 
     return {"report": report}
-
-# --- Test Endpoint ---
-@app_fastapi.get("/api/sponsorship/test")
-async def sponsorship_test():
-    """Test endpoint to verify sponsorship functionality."""
-    return {
-        "message": "Sponsorship endpoint is working!",
-        "available_endpoints": [
-            "POST /api/sponsorship/send - Send sponsorship emails",
-            "GET /api/sponsorship/test - This test endpoint"
-        ],
-        "example_request": {
-            "niche": "marketing_mails"
-        }
-    }
 
 # --- Sponsorship Agent Integration ---
 @app_fastapi.post("/api/sponsorship/send")

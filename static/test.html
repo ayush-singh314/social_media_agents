@@ -3,130 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Test</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
-        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
-        .success { background: #d4edda; }
-        .error { background: #f8d7da; }
-        button { padding: 10px 20px; margin: 5px; }
-        input { padding: 8px; margin: 5px; width: 200px; }
-    </style>
+    <title>Creator Agent Hub - Test Page</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Content Ideation Agent API Test</h1>
-    
-    <div class="test-section">
-        <h2>1. Health Check</h2>
-        <button onclick="testHealth()">Test Health</button>
-        <div id="healthResult" class="result"></div>
-    </div>
-    
-    <div class="test-section">
-        <h2>2. Generate Ideas</h2>
-        <input type="text" id="niche" placeholder="Enter niche (e.g., AI)" value="AI Technology">
-        <select id="platform" aria-label="Select platform">
-            <option value="linkedin">LinkedIn</option>
-            <option value="youtube">YouTube</option>
-        </select>
-        <button onclick="testGenerateIdeas()">Generate Ideas</button>
-        <div id="ideasResult" class="result"></div>
-    </div>
-    
-    <div class="test-section">
-        <h2>3. Test Connection</h2>
-        <button onclick="testConnection()">Test Connection</button>
-        <div id="connectionResult" class="result"></div>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <h1>Creator Agent Hub</h1>
+                </div>
+                <p class="tagline">AI-Powered Content Creation Workflow</p>
+            </div>
+        </header>
+
+        <main class="workflow-container">
+            <div class="workflow-steps">
+                <div class="workflow-step active">
+                    <div class="step-header">
+                        <div class="step-number">1</div>
+                        <div class="step-info">
+                            <h3><i class="fas fa-lightbulb"></i> Test Connection</h3>
+                            <p>Test the API connection and agent functionality</p>
+                        </div>
+                    </div>
+                    <div class="step-content">
+                        <div class="input-group">
+                            <label for="test-media-url">Test Media URL:</label>
+                            <input type="url" id="test-media-url" placeholder="https://example.com/image.jpg" aria-label="Test Media URL">
+                            <small style="color: #a0a0a0; font-size: 0.8rem;">Optional: Add an image URL to test media functionality</small>
+                        </div>
+                        <button class="btn-primary" onclick="testAPI()">
+                            <i class="fas fa-wifi"></i> Test API Connection
+                        </button>
+                        <div class="results" id="test-results">
+                            <p>Click the button above to test the API connection</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <aside class="agent-status">
+            <h3><i class="fas fa-microchip"></i> System Status</h3>
+            <div class="agent-list">
+                <div class="agent-item">
+                    <i class="fas fa-server"></i>
+                    <span>API Server</span>
+                    <div class="status idle">Unknown</div>
+                </div>
+                <div class="agent-item">
+                    <i class="fas fa-database"></i>
+                    <span>Database</span>
+                    <div class="status idle">Unknown</div>
+                </div>
+            </div>
+        </aside>
     </div>
 
     <script>
-        const API_BASE = 'http://127.0.0.1:8000';
-        
-        function showResult(elementId, message, isSuccess = true) {
-            const element = document.getElementById(elementId);
-            element.innerHTML = message;
-            element.className = `result ${isSuccess ? 'success' : 'error'}`;
-        }
-        
-        async function testHealth() {
+        async function testAPI() {
+            const resultsDiv = document.getElementById('test-results');
+            const apiStatus = document.querySelector('.agent-item .status');
+            
+            resultsDiv.innerHTML = '<p>Testing API connection...</p>';
+            apiStatus.textContent = 'Testing';
+            apiStatus.className = 'status working';
+            
             try {
-                console.log('Testing health endpoint...');
-                const response = await fetch(`${API_BASE}/api/health`);
-                console.log('Health response:', response);
+                const response = await fetch('http://127.0.0.1:8000/api/health');
                 
                 if (response.ok) {
                     const data = await response.json();
-                    showResult('healthResult', `✅ Health check passed: ${JSON.stringify(data)}`);
+                    resultsDiv.innerHTML = `
+                        <div class="success-message">
+                            <h4><i class="fas fa-check-circle"></i> API Connection Successful!</h4>
+                            <p>Server is running and responding correctly.</p>
+                            <p><strong>Status:</strong> ${data.status || 'Healthy'}</p>
+                        </div>
+                    `;
+                    apiStatus.textContent = 'Online';
+                    apiStatus.className = 'status success';
                 } else {
-                    showResult('healthResult', `❌ Health check failed: ${response.status}`, false);
+                    throw new Error(`HTTP ${response.status}`);
                 }
             } catch (error) {
-                console.error('Health check error:', error);
-                showResult('healthResult', `❌ Health check error: ${error.message}`, false);
+                resultsDiv.innerHTML = `
+                    <div class="error-message">
+                        <h4><i class="fas fa-exclamation-triangle"></i> API Connection Failed</h4>
+                        <p>Error: ${error.message}</p>
+                        <p>Make sure the server is running on http://127.0.0.1:8000</p>
+                    </div>
+                `;
+                apiStatus.textContent = 'Offline';
+                apiStatus.className = 'status error';
             }
         }
-        
-        async function testGenerateIdeas() {
-            const niche = document.getElementById('niche').value;
-            const platform = document.getElementById('platform').value;
-            
-            if (!niche) {
-                showResult('ideasResult', '❌ Please enter a niche', false);
-                return;
-            }
-            
-            try {
-                console.log('Testing generate ideas...');
-                const response = await fetch(`${API_BASE}/api/generate-ideas`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        user_niche: niche,
-                        platform_choice: platform,
-                        media_url: null
-                    })
-                });
-                
-                console.log('Generate ideas response:', response);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    showResult('ideasResult', `✅ Generated ${data.ideas.length} ideas for ${data.niche} on ${data.platform}`);
-                } else {
-                    const errorText = await response.text();
-                    showResult('ideasResult', `❌ Generate ideas failed: ${response.status} - ${errorText}`, false);
-                }
-            } catch (error) {
-                console.error('Generate ideas error:', error);
-                showResult('ideasResult', `❌ Generate ideas error: ${error.message}`, false);
-            }
-        }
-        
-        async function testConnection() {
-            try {
-                console.log('Testing connection...');
-                const response = await fetch(`${API_BASE}/api/health`);
-                console.log('Connection test response:', response);
-                
-                if (response.ok) {
-                    showResult('connectionResult', `✅ Connection successful to ${API_BASE}`);
-                } else {
-                    showResult('connectionResult', `❌ Connection failed: ${response.status}`, false);
-                }
-            } catch (error) {
-                console.error('Connection test error:', error);
-                showResult('connectionResult', `❌ Connection failed: ${error.message}`, false);
-            }
-        }
-        
-        // Auto-test on page load
-        window.onload = function() {
-            console.log('Page loaded, testing connection...');
-            testConnection();
-        };
     </script>
 </body>
 </html>
