@@ -10,6 +10,11 @@ from pydantic import BaseModel
 from typing import AsyncGenerator, List, Optional
 import os
 from dotenv import load_dotenv
+try:
+    # Optional import for YouTube publishing workflow
+    from publishing_agent import app as youtube_publishing_app
+except Exception:
+    youtube_publishing_app = None
 
 # Load environment variables
 load_dotenv()
@@ -81,6 +86,30 @@ class PublishResponse(BaseModel):
     success: bool
     message: str
     post_id: Optional[str] = None
+
+class YouTubePublishInput(BaseModel):
+    video_link: str
+    is_clip: bool
+
+# --- Utilities ---
+def _make_json_safe(value):
+    """Recursively convert Pydantic models and complex types to JSON-safe structures."""
+    try:
+        from pydantic import BaseModel as _PydBase
+    except Exception:
+        _PydBase = BaseModel  # fallback
+
+    if isinstance(value, _PydBase):
+        try:
+            return value.model_dump()
+        except Exception:
+            # pydantic v1 fallback
+            return value.dict()
+    if isinstance(value, dict):
+        return {k: _make_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_make_json_safe(v) for v in value]
+    return value
 
 # --- API Endpoints ---
 
@@ -281,6 +310,31 @@ async def callback(request: Request):
 # Create a static directory for the frontend
 os.makedirs("static", exist_ok=True)
 app_fastapi.mount("/static", StaticFiles(directory="static"), name="static")
+
+# --- YouTube Publishing Agent Integration ---
+@app_fastapi.post("/api/youtube/publish")
+async def youtube_publish(input: YouTubePublishInput):
+    """Stream the YouTube publishing workflow (download → optional clips → upload)."""
+    if youtube_publishing_app is None:
+        raise HTTPException(status_code=500, detail="YouTube publishing agent not available")
+
+    initial_state = {
+        "video_url": input.video_link,
+        "user_wants_clips": input.is_clip,
+        "video_file_path": None,
+        "transcript": None,
+        "clips": [],
+        "validation_passed": False,
+        "publish_clips": True,
+        "error": None,
+    }
+
+    async def stream_results() -> AsyncGenerator:
+        async for state_update in youtube_publishing_app.astream(initial_state):
+            safe_update = _make_json_safe(state_update)
+            yield f"data: {json.dumps(safe_update)}\n\n"
+
+    return StreamingResponse(stream_results(), media_type="text/event-stream")
 
 # Create the app instance
 app = app_fastapi
