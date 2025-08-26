@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .success { background: #d4edda; }
+        .error { background: #f8d7da; }
+        button { padding: 10px 20px; margin: 5px; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>Content Ideation Agent API Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Health Check</h2>
+        <button onclick="testHealth()">Test Health</button>
+        <div id="healthResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Generate Ideas</h2>
+        <input type="text" id="niche" placeholder="Enter niche (e.g., AI)" value="AI Technology">
+        <select id="platform" aria-label="Select platform">
+            <option value="linkedin">LinkedIn</option>
+            <option value="youtube">YouTube</option>
+        </select>
+        <button onclick="testGenerateIdeas()">Generate Ideas</button>
+        <div id="ideasResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        
+        function showResult(elementId, message, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.className = `result ${isSuccess ? 'success' : 'error'}`;
+        }
+        
+        async function testHealth() {
+            try {
+                console.log('Testing health endpoint...');
+                const response = await fetch(`${API_BASE}/api/health`);
+                console.log('Health response:', response);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('healthResult', `✅ Health check passed: ${JSON.stringify(data)}`);
+                } else {
+                    showResult('healthResult', `❌ Health check failed: ${response.status}`, false);
+                }
+            } catch (error) {
+                console.error('Health check error:', error);
+                showResult('healthResult', `❌ Health check error: ${error.message}`, false);
+            }
+        }
+        
+        async function testGenerateIdeas() {
+            const niche = document.getElementById('niche').value;
+            const platform = document.getElementById('platform').value;
+            
+            if (!niche) {
+                showResult('ideasResult', '❌ Please enter a niche', false);
+                return;
+            }
+            
+            try {
+                console.log('Testing generate ideas...');
+                const response = await fetch(`${API_BASE}/api/generate-ideas`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_niche: niche,
+                        platform_choice: platform,
+                        media_url: null
+                    })
+                });
+                
+                console.log('Generate ideas response:', response);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('ideasResult', `✅ Generated ${data.ideas.length} ideas for ${data.niche} on ${data.platform}`);
+                } else {
+                    const errorText = await response.text();
+                    showResult('ideasResult', `❌ Generate ideas failed: ${response.status} - ${errorText}`, false);
+                }
+            } catch (error) {
+                console.error('Generate ideas error:', error);
+                showResult('ideasResult', `❌ Generate ideas error: ${error.message}`, false);
+            }
+        }
+        
+        async function testConnection() {
+            try {
+                console.log('Testing connection...');
+                const response = await fetch(`${API_BASE}/api/health`);
+                console.log('Connection test response:', response);
+                
+                if (response.ok) {
+                    showResult('connectionResult', `✅ Connection successful to ${API_BASE}`);
+                } else {
+                    showResult('connectionResult', `❌ Connection failed: ${response.status}`, false);
+                }
+            } catch (error) {
+                console.error('Connection test error:', error);
+                showResult('connectionResult', `❌ Connection failed: ${error.message}`, false);
+            }
+        }
+        
+        // Auto-test on page load
+        window.onload = function() {
+            console.log('Page loaded, testing connection...');
+            testConnection();
+        };
+    </script>
+</body>
+</html>
