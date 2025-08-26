@@ -16,6 +16,13 @@ try:
 except Exception:
     youtube_publishing_app = None
 
+try:
+    # Optional import for YouTube comments analysis workflow
+    from analysis_agent import build_graph as build_analysis_graph
+    analysis_app = build_analysis_graph()
+except Exception:
+    analysis_app = None
+
 # Load environment variables
 load_dotenv()
 
@@ -110,6 +117,9 @@ def _make_json_safe(value):
     if isinstance(value, (list, tuple, set)):
         return [_make_json_safe(v) for v in value]
     return value
+
+class YouTubeAnalysisInput(BaseModel):
+    video_link: str
 
 # --- API Endpoints ---
 
@@ -335,6 +345,28 @@ async def youtube_publish(input: YouTubePublishInput):
             yield f"data: {json.dumps(safe_update)}\n\n"
 
     return StreamingResponse(stream_results(), media_type="text/event-stream")
+
+# --- YouTube Comments Analysis Integration ---
+@app_fastapi.post("/api/youtube/analyze")
+async def youtube_analyze(input: YouTubeAnalysisInput):
+    """Analyze YouTube comments for a single video URL and return a report."""
+    if analysis_app is None:
+        raise HTTPException(status_code=500, detail="YouTube analysis agent not available")
+
+    initial_state = {"video_url": input.video_link}
+    # Provide a simple thread id for stateful runs (InMemorySaver requires it)
+    config = {"configurable": {"thread_id": f"yt-analysis-{hash(input.video_link) & 0xffff}"}}
+
+    try:
+        final_state = analysis_app.invoke(initial_state, config=config)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+    report = final_state.get("report") if isinstance(final_state, dict) else None
+    if not report:
+        raise HTTPException(status_code=500, detail="Analysis produced no report")
+
+    return {"report": report}
 
 # Create the app instance
 app = app_fastapi
